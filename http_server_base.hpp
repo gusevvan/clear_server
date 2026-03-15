@@ -9,7 +9,7 @@
 
 #include <iostream>
 #include <thread>
-#include <unordered_map>
+#include <map>
 
 #include "http_utils.hpp"
 
@@ -51,8 +51,8 @@ public:
         ioc.run();
     }
 
-    void add_handler(const std::string& path, Handler handler) {
-        handlers_.emplace(path, std::move(handler));
+    void add_handler(http::verb method, const std::string& path, Handler handler) {
+        handlers_.emplace(std::pair{method, path}, std::move(handler));
     }
 
 protected:
@@ -65,7 +65,7 @@ protected:
 
 private:
     asio::ip::tcp::endpoint endpoint_;
-    std::unordered_map<std::string, Handler> handlers_;
+    std::map<std::pair<http::verb, std::string>, Handler> handlers_;
 
     asio::awaitable<void> start_listen() {
         auto executor = co_await asio::this_coro::executor;
@@ -107,10 +107,10 @@ private:
 
     asio::awaitable<http::message_generator> handle_request(HttpRequest req) {
         CustomResponse handle_res;
-        if (handlers_.contains(req.path())) {
+        if (handlers_.contains(std::pair{req.raw().method(), req.path()})) {
             handle_res.status() = http::status::internal_server_error;
             try {
-                const auto& handler = handlers_.at(req.path());
+                const auto& handler = handlers_.at(std::pair{req.raw().method(), req.path()});
                 handle_res = co_await handler();
             } catch (std::exception& exc) {
                 std::cerr << std::format("Error while handling {}: {}", 
