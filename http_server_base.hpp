@@ -21,6 +21,9 @@ namespace asio = boost::asio;
 
 template <typename TcpStream>
 class HttpServerBase {
+
+    using Handler = std::function<asio::awaitable<CustomResponse>()>;
+
 public:
     HttpServerBase(const std::string& address, unsigned short port) 
         : endpoint_{asio::ip::make_address(address), port} {}
@@ -48,7 +51,7 @@ public:
         ioc.run();
     }
 
-    void add_handler(const std::string& path, std::function<asio::awaitable<std::string>()> handler) {
+    void add_handler(const std::string& path, Handler handler) {
         handlers_.emplace(path, std::move(handler));
     }
 
@@ -62,7 +65,7 @@ protected:
 
 private:
     asio::ip::tcp::endpoint endpoint_;
-    std::unordered_map<std::string, std::function<asio::awaitable<std::string>()>> handlers_;
+    std::unordered_map<std::string, Handler> handlers_;
 
     asio::awaitable<void> start_listen() {
         auto executor = co_await asio::this_coro::executor;
@@ -103,18 +106,27 @@ private:
     }
 
     asio::awaitable<http::message_generator> handle_request(HttpRequest req) {
-        auto status = http::status::not_found;
-        std::string payload;
+        CustomResponse handle_res;
         if (handlers_.contains(req.path())) {
-            status = http::status::ok;
-            const auto& handler = handlers_.at(req.path());
-            payload = co_await handler();
+            handle_res.status() = http::status::internal_server_error;
+            try {
+                const auto& handler = handlers_.at(req.path());
+                handle_res = co_await handler();
+            } catch (std::exception& exc) {
+                std::cerr << std::format("Error while handling {}: {}", 
+                    req.path(), exc.what()) << std::endl; 
+            } catch (...) {
+                std::cerr << std::format("Unknown error while handling {}", 
+                    req.path()) << std::endl;
+            }
+        } else {
+            handle_res.status() = http::status::not_found;
         }
-        http::response<http::string_body> res{status, req.raw().version()};
+        http::response<http::string_body> res{handle_res.status(), req.raw().version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/plain");
         res.keep_alive(req.raw().keep_alive());
-        res.body() = payload;
+        res.body() = std::move(handle_res).payload();
         res.prepare_payload();
         co_return res;
     }

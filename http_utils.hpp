@@ -39,4 +39,25 @@ private:
     url::url_view target_;
 };
 
+class CustomResponse {
+public:
+    CustomResponse() = default;
+
+    CustomResponse(std::string payload, unsigned short status_code)
+        : payload_{std::move(payload)}
+        , status_{status_code} {}
+
+    std::string payload() && {
+        return std::move(payload_);
+    }
+
+    http::status& status() {
+        return status_;
+    }
+    
+private:
+    std::string payload_;
+    http::status status_;
+};
+
 } // namespace clear_server
