@@ -5,7 +5,7 @@ namespace clear_server {
 
 class HttpServer final : public HttpServerBase<beast::tcp_stream> {
 public:
-    HttpServer(const asio::ip::address& address, unsigned short port)
+    HttpServer(const std::string& address, unsigned short port)
         : HttpServerBase(address, port) {}
 
 private:
