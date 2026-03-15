@@ -11,6 +11,8 @@
 #include <thread>
 #include <unordered_map>
 
+#include "http_utils.hpp"
+
 namespace clear_server {
 
 namespace beast = boost::beast;
@@ -46,7 +48,7 @@ public:
         ioc.run();
     }
 
-    void add_handler(const std::string& path, std::function<asio::awaitable<void>()> handler) {
+    void add_handler(const std::string& path, std::function<asio::awaitable<std::string>()> handler) {
         handlers_.emplace(path, std::move(handler));
     }
 
@@ -60,7 +62,7 @@ protected:
 
 private:
     asio::ip::tcp::endpoint endpoint_;
-    std::unordered_map<std::string, std::function<asio::awaitable<void>()>> handlers_;
+    std::unordered_map<std::string, std::function<asio::awaitable<std::string>()>> handlers_;
 
     asio::awaitable<void> start_listen() {
         auto executor = co_await asio::this_coro::executor;
@@ -90,7 +92,7 @@ private:
             set_timeout(stream);
             http::request<http::string_body> req;
             co_await http::async_read(stream, buffer, req);
-            http::message_generator msg = handle_request(std::move(req));
+            http::message_generator msg = co_await handle_request(std::move(req));
             bool keep_alive = msg.keep_alive();
             co_await beast::async_write(stream, std::move(msg));
             if (!keep_alive) {
@@ -100,15 +102,21 @@ private:
         co_await shutdown(stream);
     }
 
-    template <class Body, class Allocator>
-    http::message_generator handle_request(http::request<Body, http::basic_fields<Allocator>>&& req) {
-        http::response<http::string_body> res{http::status::ok, req.version()};
+    asio::awaitable<http::message_generator> handle_request(HttpRequest req) {
+        auto status = http::status::not_found;
+        std::string payload;
+        if (handlers_.contains(req.path())) {
+            status = http::status::ok;
+            const auto& handler = handlers_.at(req.path());
+            payload = co_await handler();
+        }
+        http::response<http::string_body> res{status, req.raw().version()};
         res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
         res.set(http::field::content_type, "text/plain");
-        res.keep_alive(req.keep_alive());
-        res.body() = req.target();
+        res.keep_alive(req.raw().keep_alive());
+        res.body() = payload;
         res.prepare_payload();
-        return res;
+        co_return res;
     }
 };
 
