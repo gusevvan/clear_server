@@ -1,7 +1,7 @@
 #pragma once
 #include "http_server_base.hpp"
 
-namespace sample_server {
+namespace clear_server {
 
 class HttpServer final : public HttpServerBase<beast::tcp_stream> {
 public:
@@ -23,4 +23,4 @@ private:
     }
 };
 
-} // namespace sample_server
+} // namespace clear_server
