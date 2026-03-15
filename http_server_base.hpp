@@ -132,4 +132,13 @@ private:
     }
 };
 
+#define GET_HANDLER(server, endpoint, ...) \
+    server.add_handler(http::verb::get, endpoint, \
+        []() -> asio::awaitable<CustomResponse> { __VA_ARGS__ })
+
+
+#define POST_HANDLER(server, endpoint, ...) \
+    server.add_handler(http::verb::post, endpoint, \
+        []() -> asio::awaitable<CustomResponse> { __VA_ARGS__ })
+
 } // namespace clear_server

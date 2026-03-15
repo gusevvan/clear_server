@@ -1,16 +1,16 @@
 #include "http_server.hpp"
-#include "ssl_http_server.hpp"
+#include "ssl_http_server.hpp" 
 
 int main() {
     using namespace clear_server;    
 
     SslHttpServer server{"0.0.0.0", 8080, "cert.pem", "key.pem"};
 
-    server.add_handler(http::verb::get, "/ababa", []() -> asio::awaitable<CustomResponse> {
+    GET_HANDLER(server, "/ababa", {
         co_return CustomResponse{"{\"hello\": \"world\"}", static_cast<unsigned short>(200)};
     });
 
-    server.add_handler(http::verb::post, "/bad", []() -> asio::awaitable<CustomResponse> {
+    POST_HANDLER(server, "/bad", {
         throw std::runtime_error("Bad");
         co_return CustomResponse{"", static_cast<unsigned short>(101)};
     });
