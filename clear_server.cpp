@@ -8,7 +8,7 @@
 #include <vector>
 
 int main() {
-    using namespace sample_server;
+    using namespace clear_server;
     
     auto const address = asio::ip::make_address("0.0.0.0");
     auto const port = static_cast<unsigned short>(8080);

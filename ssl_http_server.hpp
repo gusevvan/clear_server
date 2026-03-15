@@ -3,7 +3,7 @@
 
 #include <boost/asio/ssl.hpp>
 
-namespace sample_server {
+namespace clear_server {
 
 namespace ssl = asio::ssl;
 
@@ -38,4 +38,4 @@ private:
     ssl::context ssl_ctx_;
 };
 
-} // namespace sample_server
+} // namespace clear_server

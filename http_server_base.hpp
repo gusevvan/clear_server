@@ -9,7 +9,7 @@
 #include <iostream>
 #include <unordered_map>
 
-namespace sample_server {
+namespace clear_server {
 
 namespace beast = boost::beast;
 namespace http = beast::http;
@@ -88,4 +88,4 @@ private:
     }
 };
 
-} // namespace sample_server
+} // namespace clear_server
