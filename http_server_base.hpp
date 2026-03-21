@@ -7,11 +7,11 @@
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
 
-#include <iostream>
 #include <thread>
-#include <unordered_map>
+#include <map>
 
 #include "http_utils.hpp"
+#include "logger/logger.hpp"
 
 namespace clear_server {
 
@@ -19,10 +19,10 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 namespace asio = boost::asio;
 
-template <typename TcpStream>
+template <typename TcpStream, typename Logger = logger::DefaultLogger>
 class HttpServerBase {
 
-    using Handler = std::function<asio::awaitable<CustomResponse>()>;
+    using Handler = std::function<asio::awaitable<CustomResponse>(const HttpRequest&)>;
 
 public:
     HttpServerBase(const std::string& address, unsigned short port) 
@@ -33,12 +33,12 @@ public:
         asio::co_spawn(
             ioc,
             start_listen(),
-            [](std::exception_ptr e) {
+            [this](std::exception_ptr e) {
                 if (e) {
                     try {
                         std::rethrow_exception(e);
                     } catch(std::exception const& e) {
-                        std::cerr << "Error: " << e.what() << std::endl;
+                        logger_.error("Listen error: {}", e.what());
                     }
                 }
             }
@@ -51,8 +51,8 @@ public:
         ioc.run();
     }
 
-    void add_handler(const std::string& path, Handler handler) {
-        handlers_.emplace(path, std::move(handler));
+    void add_handler(http::verb method, const std::string& path, Handler handler) {
+        handlers_.emplace(std::pair{method, path}, std::move(handler));
     }
 
 protected:
@@ -65,7 +65,8 @@ protected:
 
 private:
     asio::ip::tcp::endpoint endpoint_;
-    std::unordered_map<std::string, Handler> handlers_;
+    std::map<std::pair<http::verb, std::string>, Handler> handlers_;
+    Logger logger_;
 
     asio::awaitable<void> start_listen() {
         auto executor = co_await asio::this_coro::executor;
@@ -74,12 +75,12 @@ private:
             asio::co_spawn(
                 executor,
                 do_session(co_await acceptor.async_accept()),
-                [](std::exception_ptr e) {
+                [this](std::exception_ptr e) {
                     if (e) {
                         try {
                             std::rethrow_exception(e);
                         } catch(std::exception const& e) {
-                            std::cerr << "Error in session: " << e.what() << "\n";
+                            logger_.error("Session error: {}", e.what());
                         }
                     }
                 }
@@ -107,17 +108,15 @@ private:
 
     asio::awaitable<http::message_generator> handle_request(HttpRequest req) {
         CustomResponse handle_res;
-        if (handlers_.contains(req.path())) {
+        if (handlers_.contains(std::pair{req.raw().method(), req.path()})) {
             handle_res.status() = http::status::internal_server_error;
             try {
-                const auto& handler = handlers_.at(req.path());
-                handle_res = co_await handler();
+                const auto& handler = handlers_.at(std::pair{req.raw().method(), req.path()});
+                handle_res = co_await handler(req);
             } catch (std::exception& exc) {
-                std::cerr << std::format("Error while handling {}: {}", 
-                    req.path(), exc.what()) << std::endl; 
+                logger_.error("Handling {} error: {}", req.path(), exc.what());
             } catch (...) {
-                std::cerr << std::format("Unknown error while handling {}", 
-                    req.path()) << std::endl;
+                logger_.error("Unknown error while handling {}", req.path());
             }
         } else {
             handle_res.status() = http::status::not_found;
@@ -131,5 +130,16 @@ private:
         co_return res;
     }
 };
+
+#define BASE_HANDLER(server, type, endpoint, ...) \
+    server.add_handler(http::verb::get, endpoint, \
+        [](const HttpRequest& request) -> asio::awaitable<CustomResponse> __VA_ARGS__ )
+
+#define GET_HANDLER(server, endpoint, ...) \
+    BASE_HANDLER(server, http::verb::get, endpoint, __VA_ARGS__)
+
+
+#define POST_HANDLER(server, endpoint, ...) \
+    BASE_HANDLER(server, http::verb::post, endpoint, __VA_ARGS__)
 
 } // namespace clear_server
