@@ -20,7 +20,7 @@ protected:
     
     template <typename... Args>
     void print(std::format_string<Args...> fmt, Args... args) const {
-        std::cout << std::format("[{}]", getTimeFmt()) << "[" << color_ << 
+        std::cout << std::format("[{}]", getTimeFmt()) << " [" << color_ << 
             std::format("{}", type_) << color::Default() << "] " <<
             std::format(fmt, std::forward<Args>(args)...) << "\n";
     }

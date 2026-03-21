@@ -11,7 +11,6 @@
 #include <map>
 
 #include "http_utils.hpp"
-#include "logger/logger.hpp"
 
 namespace clear_server {
 
@@ -19,14 +18,15 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 namespace asio = boost::asio;
 
-template <typename TcpStream, typename Logger = logger::DefaultLogger>
+template <typename TcpStream, typename Logger>
 class HttpServerBase {
 
     using Handler = std::function<asio::awaitable<CustomResponse>(const HttpRequest&)>;
 
 public:
-    HttpServerBase(const std::string& address, unsigned short port) 
-        : endpoint_{asio::ip::make_address(address), port} {}
+    HttpServerBase(const std::string& address, unsigned short port, Logger logger) 
+        : endpoint_{asio::ip::make_address(address), port}
+        , logger_{std::move(logger)} {}
 
     void run(int num_threads = std::thread::hardware_concurrency()) {
         asio::io_context ioc{num_threads};
