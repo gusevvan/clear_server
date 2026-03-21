@@ -22,7 +22,7 @@ namespace asio = boost::asio;
 template <typename TcpStream>
 class HttpServerBase {
 
-    using Handler = std::function<asio::awaitable<CustomResponse>()>;
+    using Handler = std::function<asio::awaitable<CustomResponse>(const HttpRequest&)>;
 
 public:
     HttpServerBase(const std::string& address, unsigned short port) 
@@ -111,7 +111,7 @@ private:
             handle_res.status() = http::status::internal_server_error;
             try {
                 const auto& handler = handlers_.at(std::pair{req.raw().method(), req.path()});
-                handle_res = co_await handler();
+                handle_res = co_await handler(req);
             } catch (std::exception& exc) {
                 std::cerr << std::format("Error while handling {}: {}", 
                     req.path(), exc.what()) << std::endl; 
@@ -132,13 +132,15 @@ private:
     }
 };
 
-#define GET_HANDLER(server, endpoint, ...) \
+#define BASE_HANDLER(server, type, endpoint, ...) \
     server.add_handler(http::verb::get, endpoint, \
-        []() -> asio::awaitable<CustomResponse> { __VA_ARGS__ })
+        [](const HttpRequest& request) -> asio::awaitable<CustomResponse> __VA_ARGS__ )
+
+#define GET_HANDLER(server, endpoint, ...) \
+    BASE_HANDLER(server, http::verb::get, endpoint, __VA_ARGS__)
 
 
 #define POST_HANDLER(server, endpoint, ...) \
-    server.add_handler(http::verb::post, endpoint, \
-        []() -> asio::awaitable<CustomResponse> { __VA_ARGS__ })
+    BASE_HANDLER(server, http::verb::post, endpoint, __VA_ARGS__)
 
 } // namespace clear_server

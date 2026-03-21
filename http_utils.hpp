@@ -22,15 +22,15 @@ public:
         : beast_req_{std::move(beast_req)}
         , target_(beast_req_.target()) {}
 
-    auto query_params() {
+    auto query_params() const {
         return target_.params();
     }
 
-    std::string path() {
+    std::string path() const {
         return target_.path();
     }
 
-    const http::request<http::string_body>& raw() {
+    const http::request<http::string_body>& raw() const {
         return beast_req_;
     }
 
