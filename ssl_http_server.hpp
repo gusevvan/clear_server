@@ -1,5 +1,6 @@
 #pragma once
 #include "http_server_base.hpp"
+#include "logger/logger.hpp"
 
 #include <boost/asio/ssl.hpp>
 
@@ -11,14 +12,18 @@ namespace clear_server {
 
 namespace ssl = asio::ssl;
 
-class SslHttpServer final : public HttpServerBase<ssl::stream<beast::tcp_stream>> {
+template <typename Logger = logger::DefaultLogger>
+class SslHttpServer final : public HttpServerBase<ssl::stream<beast::tcp_stream>, Logger> {
+private:
+    using TcpStreamType = typename HttpServerBase<ssl::stream<beast::tcp_stream>, Logger>::TcpStreamType;
 public:    
     SslHttpServer(
         const std::string& address, 
         unsigned short port,
         const std::string& cert_path,
-        const std::string& key_path)
-        : HttpServerBase(address, port)
+        const std::string& key_path,
+        Logger logger = {})
+        : HttpServerBase<ssl::stream<beast::tcp_stream>, Logger>(address, port, std::move(logger))
         , ssl_ctx_{ssl::context::tlsv12} {
         tune_ssl(cert_path, key_path);
     }

@@ -1,12 +1,16 @@
 #pragma once
 #include "http_server_base.hpp"
+#include "logger/logger.hpp"
 
 namespace clear_server {
 
-class HttpServer final : public HttpServerBase<beast::tcp_stream> {
+template <typename Logger = logger::DefaultLogger>
+class HttpServer final : public HttpServerBase<beast::tcp_stream, Logger> {
+private:
+    using TcpStreamType = typename HttpServerBase<beast::tcp_stream, Logger>::TcpStreamType;
 public:
-    HttpServer(const std::string& address, unsigned short port)
-        : HttpServerBase(address, port) {}
+    HttpServer(const std::string& address, unsigned short port, Logger logger = {})
+        : HttpServerBase<beast::tcp_stream, Logger>(address, port, std::move(logger)) {}
 
 private:
     TcpStreamType build_stream(asio::ip::tcp::socket&& client_socket) override {

@@ -6,12 +6,12 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
+#include <boost/system/error_code.hpp>
 
 #include <thread>
 #include <map>
 
 #include "http_utils.hpp"
-#include "logger/logger.hpp"
 
 namespace clear_server {
 
@@ -19,14 +19,15 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 namespace asio = boost::asio;
 
-template <typename TcpStream, typename Logger = logger::DefaultLogger>
+template <typename TcpStream, typename Logger>
 class HttpServerBase {
 
     using Handler = std::function<asio::awaitable<CustomResponse>(const HttpRequest&)>;
 
 public:
-    HttpServerBase(const std::string& address, unsigned short port) 
-        : endpoint_{asio::ip::make_address(address), port} {}
+    HttpServerBase(const std::string& address, unsigned short port, Logger logger) 
+        : endpoint_{asio::ip::make_address(address), port}
+        , logger_{std::move(logger)} {}
 
     void run(int num_threads = std::thread::hardware_concurrency()) {
         asio::io_context ioc{num_threads};
@@ -34,13 +35,7 @@ public:
             ioc,
             start_listen(),
             [this](std::exception_ptr e) {
-                if (e) {
-                    try {
-                        std::rethrow_exception(e);
-                    } catch(std::exception const& e) {
-                        logger_.error("Listen error: {}", e.what());
-                    }
-                }
+                handle_error("Listen", std::move(e));
             }
         );
         std::vector<std::thread> io_pool;
@@ -76,15 +71,21 @@ private:
                 executor,
                 do_session(co_await acceptor.async_accept()),
                 [this](std::exception_ptr e) {
-                    if (e) {
-                        try {
-                            std::rethrow_exception(e);
-                        } catch(std::exception const& e) {
-                            logger_.error("Session error: {}", e.what());
-                        }
-                    }
+                    handle_error("Session", std::move(e));
                 }
             );
+        }
+    }
+
+    void handle_error(const std::string& type, std::exception_ptr e) {
+        if (e) {
+            try {
+                std::rethrow_exception(e);
+            } catch (const boost::system::system_error& e) {
+                logger_.error("{} error: {}", type, e.code().message());
+            } catch (const std::exception& e) {
+                logger_.error("{} error: {}", type, e.what());
+            }
         }
     }
 
@@ -96,6 +97,7 @@ private:
             set_timeout(stream);
             http::request<http::string_body> req;
             co_await http::async_read(stream, buffer, req);
+            log_request(req);
             http::message_generator msg = co_await handle_request(std::move(req));
             bool keep_alive = msg.keep_alive();
             co_await beast::async_write(stream, std::move(msg));
@@ -104,6 +106,10 @@ private:
             }
         }
         co_await shutdown(stream);
+    }
+
+    void log_request(const HttpRequest& req) {
+        logger_.info("Get request: {} {}", req.raw().method_string(), req.raw().body());
     }
 
     asio::awaitable<http::message_generator> handle_request(HttpRequest req) {
@@ -119,6 +125,7 @@ private:
                 logger_.error("Unknown error while handling {}", req.path());
             }
         } else {
+            logger_.error("Cannot handle request: handler not registered");
             handle_res.status() = http::status::not_found;
         }
         http::response<http::string_body> res{handle_res.status(), req.raw().version()};
