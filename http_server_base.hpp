@@ -7,11 +7,11 @@
 #include <boost/beast/http.hpp>
 #include <boost/beast/version.hpp>
 
-#include <iostream>
 #include <thread>
 #include <map>
 
 #include "http_utils.hpp"
+#include "logger/logger.hpp"
 
 namespace clear_server {
 
@@ -19,7 +19,7 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 namespace asio = boost::asio;
 
-template <typename TcpStream>
+template <typename TcpStream, typename Logger = logger::DefaultLogger>
 class HttpServerBase {
 
     using Handler = std::function<asio::awaitable<CustomResponse>(const HttpRequest&)>;
@@ -33,12 +33,12 @@ public:
         asio::co_spawn(
             ioc,
             start_listen(),
-            [](std::exception_ptr e) {
+            [this](std::exception_ptr e) {
                 if (e) {
                     try {
                         std::rethrow_exception(e);
                     } catch(std::exception const& e) {
-                        std::cerr << "Error: " << e.what() << std::endl;
+                        logger_.error("Listen error: {}", e.what());
                     }
                 }
             }
@@ -66,6 +66,7 @@ protected:
 private:
     asio::ip::tcp::endpoint endpoint_;
     std::map<std::pair<http::verb, std::string>, Handler> handlers_;
+    Logger logger_;
 
     asio::awaitable<void> start_listen() {
         auto executor = co_await asio::this_coro::executor;
@@ -74,12 +75,12 @@ private:
             asio::co_spawn(
                 executor,
                 do_session(co_await acceptor.async_accept()),
-                [](std::exception_ptr e) {
+                [this](std::exception_ptr e) {
                     if (e) {
                         try {
                             std::rethrow_exception(e);
                         } catch(std::exception const& e) {
-                            std::cerr << "Error in session: " << e.what() << "\n";
+                            logger_.error("Session error: {}", e.what());
                         }
                     }
                 }
@@ -113,11 +114,9 @@ private:
                 const auto& handler = handlers_.at(std::pair{req.raw().method(), req.path()});
                 handle_res = co_await handler(req);
             } catch (std::exception& exc) {
-                std::cerr << std::format("Error while handling {}: {}", 
-                    req.path(), exc.what()) << std::endl; 
+                logger_.error("Handling {} error: {}", req.path(), exc.what());
             } catch (...) {
-                std::cerr << std::format("Unknown error while handling {}", 
-                    req.path()) << std::endl;
+                logger_.error("Unknown error while handling {}", req.path());
             }
         } else {
             handle_res.status() = http::status::not_found;
