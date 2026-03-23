@@ -35,10 +35,9 @@ public:
     }
     
 private:
-    std::string payload_;
-    http::status status_;
-    std::optional<Handler> handler_;
     HttpRequest request_;
+    std::optional<Handler> handler_;
+    http::status status_;
     std::string body_;
     std::unordered_map<std::string, std::string> headers_;
 

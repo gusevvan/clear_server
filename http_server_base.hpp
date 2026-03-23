@@ -131,7 +131,7 @@ private:
     }
 
     asio::awaitable<http::message_generator> handle_request(HttpRequest req) {
-        CustomResponse response(req, handlers_storage_);
+        CustomResponse response(std::move(req), handlers_storage_);
         try {
             co_await response.get();
         } catch (const std::exception& exc) {
@@ -144,7 +144,7 @@ private:
 };
 
 #define BASE_HANDLER(server, type, endpoint, ...) \
-    server.add_handler(http::verb::get, endpoint, \
+    server.add_handler(type, endpoint, \
         [](const HttpRequest& request, CustomResponse& response) -> asio::awaitable<void> { \
             __VA_ARGS__ \
             co_return; \
