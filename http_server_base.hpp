@@ -66,6 +66,7 @@ private:
     asio::awaitable<void> start_listen() {
         auto executor = co_await asio::this_coro::executor;
         auto acceptor = asio::ip::tcp::acceptor{ executor, endpoint_ };
+        log_server_start();
         while (true) {
             asio::co_spawn(
                 executor,
@@ -75,6 +76,11 @@ private:
                 }
             );
         }
+    }
+
+    void log_server_start() {
+        logger_.info("Server started on {}:{}", 
+            endpoint_.address().to_string(), endpoint_.port());
     }
 
     void handle_error(const std::string& type, std::exception_ptr e) {
@@ -93,23 +99,36 @@ private:
         auto stream = build_stream(std::move(client_socket));
         beast::flat_buffer buffer;
         co_await on_start(stream);
-        while (true) {
-            set_timeout(stream);
-            http::request<http::string_body> req;
-            co_await http::async_read(stream, buffer, req);
-            log_request(req);
-            http::message_generator msg = co_await handle_request(std::move(req));
-            bool keep_alive = msg.keep_alive();
-            co_await beast::async_write(stream, std::move(msg));
-            if (!keep_alive) {
-                break;
-            }
-        }
+        co_await handle_packets(stream);
         co_await shutdown(stream);
     }
 
+    asio::awaitable<void> handle_packets(TcpStreamType& stream) {
+        try {
+            beast::flat_buffer buffer;
+            while (true) {
+                set_timeout(stream);
+                http::request<http::string_body> req;
+                co_await http::async_read(stream, buffer, req);
+                log_request(req);
+                http::message_generator msg = co_await handle_request(std::move(req));
+                bool keep_alive = msg.keep_alive();
+                co_await beast::async_write(stream, std::move(msg));
+                if (!keep_alive) {
+                    co_return;
+                }
+            }
+        } catch (const beast::system_error& e) {
+            if (e.code() == http::error::end_of_stream ||
+                e.code() == asio::error::eof) {
+                co_return;
+            }
+            throw;
+        }
+    }
+
     void log_request(const HttpRequest& req) {
-        logger_.info("Get request: {} {}", req.raw().method_string(), req.raw().body());
+        logger_.info("Get request: {} {}", req.raw().method_string(), req.path());
     }
 
     asio::awaitable<http::message_generator> handle_request(HttpRequest req) {
