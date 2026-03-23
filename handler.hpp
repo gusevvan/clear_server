@@ -1,39 +1,39 @@
 #pragma once
 #include <boost/asio/awaitable.hpp>
+#include <boost/beast/http.hpp>
 #include <functional>
 #include <string>
+#include <map>
 
-#include "http_utils.hpp"
+#include "http_request.hpp"
 
 namespace clear_server {
 
 namespace asio = boost::asio;
+namespace http = boost::beast::http;
 
-class Handler {
+class HttpRequest;
+class CustomResponse;
+
+using Handler = std::function<asio::awaitable<void>(const HttpRequest&, CustomResponse&)>;
+
+class HandlersStorage {
 public:
-    Handler(std::function<asio::awaitable<CustomResponse>(Handler&)> handler)
-        : handler_{std::move(handler)} {}
+    void add_handler(http::verb method, const std::string& path, Handler handler) {
+        handlers_.emplace(std::pair{method, path}, std::move(handler));
+    }
 
-    asio::awaitable<CustomResponse> operator()(HttpRequest req) {
-        body_ = req.raw().body();
-        for (const auto& [key, value, type] : req.query_params()) {
-            query_params_.emplace(key, value);
+    std::optional<Handler> find_handler(const HttpRequest& req) const {
+        auto key = std::pair{req.raw().method(), req.path()};
+        if (handlers_.contains(key)) {
+            return handlers_.at(key);
         }
-        co_await handler_(*this);
-    }
-
-    const std::string& body() {
-        return body_;
-    }
-
-    const std::unordered_map<std::string, std::string>& query_params() {
-        return query_params_;
+        return std::nullopt;
     }
 
 private:
-    std::function<asio::awaitable<CustomResponse>(Handler&)> handler_;
-    std::string body_;
-    std::unordered_map<std::string, std::string> query_params_;
+    std::map<std::pair<http::verb, std::string>, Handler> handlers_;
 };
+
 
 } // namespace clear_server

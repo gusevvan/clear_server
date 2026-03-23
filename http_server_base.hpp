@@ -11,7 +11,9 @@
 #include <thread>
 #include <map>
 
-#include "http_utils.hpp"
+#include "handler.hpp"
+#include "http_request.hpp"
+#include "http_response.hpp"
 
 namespace clear_server {
 
@@ -21,9 +23,6 @@ namespace asio = boost::asio;
 
 template <typename TcpStream, typename Logger>
 class HttpServerBase {
-
-    using Handler = std::function<asio::awaitable<CustomResponse>(const HttpRequest&)>;
-
 public:
     HttpServerBase(const std::string& address, unsigned short port, Logger logger) 
         : endpoint_{asio::ip::make_address(address), port}
@@ -47,7 +46,7 @@ public:
     }
 
     void add_handler(http::verb method, const std::string& path, Handler handler) {
-        handlers_.emplace(std::pair{method, path}, std::move(handler));
+        handlers_storage_.add_handler(method, path, std::move(handler));
     }
 
 protected:
@@ -60,7 +59,7 @@ protected:
 
 private:
     asio::ip::tcp::endpoint endpoint_;
-    std::map<std::pair<http::verb, std::string>, Handler> handlers_;
+    HandlersStorage handlers_storage_;
     Logger logger_;
 
     asio::awaitable<void> start_listen() {
@@ -132,34 +131,24 @@ private:
     }
 
     asio::awaitable<http::message_generator> handle_request(HttpRequest req) {
-        CustomResponse handle_res;
-        if (handlers_.contains(std::pair{req.raw().method(), req.path()})) {
-            handle_res.status() = http::status::internal_server_error;
-            try {
-                const auto& handler = handlers_.at(std::pair{req.raw().method(), req.path()});
-                handle_res = co_await handler(req);
-            } catch (std::exception& exc) {
-                logger_.error("Handling {} error: {}", req.path(), exc.what());
-            } catch (...) {
-                logger_.error("Unknown error while handling {}", req.path());
-            }
-        } else {
-            logger_.error("Cannot handle request: handler not registered");
-            handle_res.status() = http::status::not_found;
+        CustomResponse response(req, handlers_storage_);
+        try {
+            co_await response.get();
+        } catch (const std::exception& exc) {
+            logger_.error("Handle request error: {}", exc.what());
+        } catch (...) {
+            logger_.error("Unknown handle request error");
         }
-        http::response<http::string_body> res{handle_res.status(), req.raw().version()};
-        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, "text/plain");
-        res.keep_alive(req.raw().keep_alive());
-        res.body() = std::move(handle_res).payload();
-        res.prepare_payload();
-        co_return res;
+        co_return response.message();
     }
 };
 
 #define BASE_HANDLER(server, type, endpoint, ...) \
     server.add_handler(http::verb::get, endpoint, \
-        [](const HttpRequest& request) -> asio::awaitable<CustomResponse> __VA_ARGS__ )
+        [](const HttpRequest& request, CustomResponse& response) -> asio::awaitable<void> { \
+            __VA_ARGS__ \
+            co_return; \
+        })
 
 #define GET_HANDLER(server, endpoint, ...) \
     BASE_HANDLER(server, http::verb::get, endpoint, __VA_ARGS__)
