@@ -52,7 +52,10 @@ private:
     template <typename TcpStream, logger::LoggerType Logger>
     friend class HttpServerBase;
 
+    template <typename HandlerType>
     friend class HandlersStorage;
+
+    template <typename HandlerType>
     friend class CustomResponse;
 
     const http::request<http::string_body>& raw() const {

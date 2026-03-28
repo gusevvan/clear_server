@@ -1,17 +1,34 @@
 #include "../http_server.hpp"
 
-int main() {
-    using namespace clear_server;    
+using namespace clear_server;
 
+class AbabaHandler final : public GetHandler {
+public:
+    AbabaHandler() : GetHandler("/ababa") {}
+
+private:
+    asio::awaitable<void> execute() {
+        response()->set_body("handled").set_status(201);
+        co_return;
+    }
+};
+
+class BadHandler final : public PostHandler {
+public:
+    BadHandler() : PostHandler("/bad") {}
+
+private:
+    asio::awaitable<void> execute() {
+        throw std::runtime_error{"bad"};
+        co_return;
+    }
+};
+
+int main() {
     HttpServer server{"0.0.0.0", 8080};
 
-    GET_HANDLER(server, "/ababa", {
-        response.set_body("handled").set_status(200);
-    });
-
-    POST_HANDLER(server, "/bad", {
-        throw std::runtime_error("Bad");
-    });
+    server.add_handler(std::make_shared<AbabaHandler>());
+    server.add_handler(std::make_shared<BadHandler>());
 
     server.run(4);
 }

@@ -12,6 +12,7 @@
 #include <map>
 
 #include "handler.hpp"
+#include "handlers_storage.hpp"
 #include "http_request.hpp"
 #include "http_response.hpp"
 #include "logger/concept.hpp"
@@ -46,8 +47,8 @@ public:
         ioc.run();
     }
 
-    void add_handler(http::verb method, const std::string& path, Handler handler) {
-        handlers_storage_.add_handler(method, path, std::move(handler));
+    void add_handler(std::shared_ptr<Handler> handler) {
+        handlers_storage_.add_handler(std::move(handler));
     }
 
 protected:
@@ -60,7 +61,7 @@ protected:
 
 private:
     asio::ip::tcp::endpoint endpoint_;
-    HandlersStorage handlers_storage_;
+    HandlersStorage<Handler> handlers_storage_;
     Logger logger_;
 
     asio::awaitable<void> start_listen() {
@@ -132,30 +133,18 @@ private:
     }
 
     asio::awaitable<http::message_generator> handle_request(HttpRequest req) {
-        CustomResponse response(std::move(req), handlers_storage_);
+        auto response = std::make_shared<CustomResponse<Handler>>(
+            std::move(req), handlers_storage_
+        );
         try {
-            co_await response.get();
+            co_await response->get(response);
         } catch (const std::exception& exc) {
             logger_.error("Handle request error: {}", exc.what());
         } catch (...) {
             logger_.error("Unknown handle request error");
         }
-        co_return response.message();
+        co_return response->message();
     }
 };
-
-#define BASE_HANDLER(server, type, endpoint, ...) \
-    server.add_handler(type, endpoint, \
-        [](const HttpRequest& request, CustomResponse& response) -> asio::awaitable<void> { \
-            __VA_ARGS__ \
-            co_return; \
-        })
-
-#define GET_HANDLER(server, endpoint, ...) \
-    BASE_HANDLER(server, http::verb::get, endpoint, __VA_ARGS__)
-
-
-#define POST_HANDLER(server, endpoint, ...) \
-    BASE_HANDLER(server, http::verb::post, endpoint, __VA_ARGS__)
 
 } // namespace clear_server
