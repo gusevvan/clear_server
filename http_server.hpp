@@ -1,10 +1,11 @@
 #pragma once
 #include "http_server_base.hpp"
+#include "logger/concept.hpp"
 #include "logger/logger.hpp"
 
 namespace clear_server {
 
-template <typename Logger = logger::DefaultLogger>
+template <logger::LoggerType Logger = logger::DefaultLogger>
 class HttpServer final : public HttpServerBase<beast::tcp_stream, Logger> {
 private:
     using TcpStreamType = typename HttpServerBase<beast::tcp_stream, Logger>::TcpStreamType;

@@ -10,7 +10,7 @@
 
 namespace clear_server::logger {
 
-template <std::derived_from<color::Color> Color>
+template <color::ColorType Color>
 class PrinterBase {
 protected:
     PrinterBase(std::string type, Level level) 
@@ -19,10 +19,10 @@ protected:
     friend class DefaultLogger;
     
     template <typename... Args>
-    void print(std::format_string<Args...> fmt, Args... args) const {
+    void print(std::format_string<Args...> fmt, Args&&... args) const {
         std::cout << std::format("[{}]", getTimeFmt()) << " [" << color_ << 
             std::format("{}", type_) << color::Default() << "] " <<
-            std::format(fmt, std::forward<Args>(args)...) << "\n";
+            std::format(std::move(fmt), std::forward<Args>(args)...) << "\n";
     }
 
     bool available(Level level) const {

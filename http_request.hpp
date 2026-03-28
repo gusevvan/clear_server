@@ -5,6 +5,8 @@
 
 #include <unordered_map>
 
+#include "logger/concept.hpp"
+
 namespace clear_server {
 
 namespace http = boost::beast::http;
@@ -47,7 +49,7 @@ private:
     http::request<http::string_body> beast_req_; 
     url::url_view target_;
 
-    template <typename TcpStream, typename Logger>
+    template <typename TcpStream, logger::LoggerType Logger>
     friend class HttpServerBase;
 
     friend class HandlersStorage;
