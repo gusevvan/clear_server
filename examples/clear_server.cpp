@@ -9,9 +9,7 @@ public:
 
 private:
     asio::awaitable<void> execute() {
-        for (const auto& [key, value] : request()->headers()) {
-            std::cout << key << " " << value << std::endl;
-        }
+        response()->add_header(Header::content_type, "application/json");
         response()->set_body("q123").set_status(200);
         co_return;
     }

@@ -13,19 +13,23 @@ namespace clear_server {
 
 namespace beast = boost::beast;
 namespace http = beast::http;
+using Header = http::field;
 
 template <typename HandlerType>
 class CustomResponse {
 public:
+    
     CustomResponse(HttpRequest request, const HandlersStorage<HandlerType>& handlers_storage)
         : request_{std::move(request)} {
         handler_ = handlers_storage.find_handler(
             request_.raw().method(), request_.path()
         );
+        add_header(Header::server, BOOST_BEAST_VERSION_STRING);
+        add_header(Header::content_type, "text/plain");
     }
 
-    CustomResponse& set_header(const std::string& key, const std::string& value) {
-        headers_.emplace(key, value);
+    CustomResponse& add_header(Header name, std::string value) {
+        headers_[name] = std::move(value);
         return *this;
     }
 
@@ -48,7 +52,7 @@ private:
     std::shared_ptr<HandlerType> handler_;
     http::status status_;
     std::string body_;
-    std::unordered_map<std::string, std::string> headers_;
+    std::unordered_map<Header, std::string> headers_;
 
     template <typename TcpStream, logger::LoggerType Logger>
     friend class HttpServerBase;
@@ -70,8 +74,9 @@ private:
     
     http::message_generator message() {
         http::response<http::string_body> res{status_, request_.raw().version()};
-        res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
-        res.set(http::field::content_type, "text/plain");
+        for (const auto& [name, value] : headers_) {
+            res.set(name, value);
+        }
         res.keep_alive(request_.raw().keep_alive());
         res.body() = std::move(body_);
         res.prepare_payload();
