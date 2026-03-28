@@ -58,4 +58,29 @@ private:
     }
 };
 
+class HeadHandler : public Handler {
+protected:
+    HeadHandler(std::string path) : Handler(http::verb::head, std::move(path)) {}
+};
+
+class GetHandler : public Handler {
+protected:
+    GetHandler(std::string path) : Handler(http::verb::get, std::move(path)) {}
+};
+
+class PostHandler : public Handler {
+protected:
+    PostHandler(std::string path) : Handler(http::verb::post, std::move(path)) {}
+};
+
+class PutHandler : public Handler {
+protected:
+    PutHandler(std::string path) : Handler(http::verb::put, std::move(path)) {}
+};
+
+class DeleteHandler : public Handler {
+protected:
+    DeleteHandler(std::string path) : Handler(http::verb::delete_, std::move(path)) {}
+};
+
 } // namespace clear_server 
