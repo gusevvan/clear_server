@@ -6,7 +6,7 @@
 #include <unordered_map>
 
 #include "http_request.hpp"
-#include "handler.hpp"
+#include "handlers_storage.hpp"
 #include "logger/concept.hpp"
 
 namespace clear_server {
@@ -14,11 +14,15 @@ namespace clear_server {
 namespace beast = boost::beast;
 namespace http = beast::http;
 
+template <typename HandlerType>
 class CustomResponse {
 public:
-    CustomResponse(HttpRequest request, const HandlersStorage& handlers_storage)
-        : request_{std::move(request)}
-        , handler_{handlers_storage.find_handler(request_)} {}
+    CustomResponse(HttpRequest request, const HandlersStorage<HandlerType>& handlers_storage)
+        : request_{std::move(request)} {
+        handler_ = handlers_storage.find_handler(
+            request_.raw().method(), request_.path()
+        );
+    }
 
     CustomResponse& set_header(const std::string& key, const std::string& value) {
         headers_.emplace(key, value);
@@ -34,10 +38,14 @@ public:
         body_ = std::move(body);
         return *this;
     }
+
+    HttpRequest get_request() {
+        return request_;
+    }
     
 private:
     HttpRequest request_;
-    std::optional<Handler> handler_;
+    std::shared_ptr<HandlerType> handler_;
     http::status status_;
     std::string body_;
     std::unordered_map<std::string, std::string> headers_;
@@ -45,7 +53,7 @@ private:
     template <typename TcpStream, logger::LoggerType Logger>
     friend class HttpServerBase;
 
-    asio::awaitable<void> get() {
+    asio::awaitable<void> get(std::shared_ptr<CustomResponse<HandlerType>> self) {
         if (handler_) {
             status_ = http::status::ok;
         } else {
@@ -53,7 +61,7 @@ private:
             throw std::runtime_error{"Handler for request not found"};
         }
         try {
-            co_await handler_.value()(request_, *this);
+            co_await (*handler_)(std::move(self));
         } catch (...) {
             status_ = http::status::internal_server_error;
             throw;
