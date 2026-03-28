@@ -16,9 +16,9 @@ namespace http = beast::http;
 using Header = http::field;
 
 template <typename HandlerType>
-class CustomResponse {
+class CustomResponse 
+    : public std::enable_shared_from_this<CustomResponse<HandlerType>>  {
 public:
-    
     CustomResponse(HttpRequest request, const HandlersStorage<HandlerType>& handlers_storage)
         : request_{std::move(request)} {
         handler_ = handlers_storage.find_handler(
@@ -57,7 +57,7 @@ private:
     template <typename TcpStream, logger::LoggerType Logger>
     friend class HttpServerBase;
 
-    asio::awaitable<void> get(std::shared_ptr<CustomResponse<HandlerType>> self) {
+    asio::awaitable<void> get() {
         if (handler_) {
             status_ = http::status::ok;
         } else {
@@ -65,7 +65,7 @@ private:
             throw std::runtime_error{"Handler for request not found"};
         }
         try {
-            co_await (*handler_)(std::move(self));
+            co_await (*handler_)(this->shared_from_this());
         } catch (...) {
             status_ = http::status::internal_server_error;
             throw;
