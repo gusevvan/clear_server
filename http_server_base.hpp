@@ -137,7 +137,7 @@ private:
             std::move(req), handlers_storage_
         );
         try {
-            co_await response->get(response);
+            co_await response->get();
         } catch (const std::exception& exc) {
             logger_.error("Handle request error: {}", exc.what());
         } catch (...) {
