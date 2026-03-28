@@ -10,7 +10,7 @@
 
 namespace clear_server::logger {
 
-template <std::derived_from<color::Color> Color>
+template <color::ColorType Color>
 class PrinterBase {
 protected:
     PrinterBase(std::string type, Level level) 

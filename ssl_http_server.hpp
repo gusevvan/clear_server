@@ -1,5 +1,6 @@
 #pragma once
 #include "http_server_base.hpp"
+#include "logger/concept.hpp"
 #include "logger/logger.hpp"
 
 #include <boost/asio/ssl.hpp>
@@ -12,7 +13,7 @@ namespace clear_server {
 
 namespace ssl = asio::ssl;
 
-template <typename Logger = logger::DefaultLogger>
+template <logger::LoggerType Logger = logger::DefaultLogger>
 class SslHttpServer final : public HttpServerBase<ssl::stream<beast::tcp_stream>, Logger> {
 private:
     using TcpStreamType = typename HttpServerBase<ssl::stream<beast::tcp_stream>, Logger>::TcpStreamType;

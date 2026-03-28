@@ -7,6 +7,7 @@
 
 #include "http_request.hpp"
 #include "handler.hpp"
+#include "logger/concept.hpp"
 
 namespace clear_server {
 
@@ -41,7 +42,7 @@ private:
     std::string body_;
     std::unordered_map<std::string, std::string> headers_;
 
-    template <typename TcpStream, typename Logger>
+    template <typename TcpStream, logger::LoggerType Logger>
     friend class HttpServerBase;
 
     asio::awaitable<void> get() {

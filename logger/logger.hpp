@@ -3,6 +3,7 @@
 #include <memory>
 #include <mutex>
 
+#include "color.hpp"
 #include "level.hpp"
 #include "printer.hpp"
 
@@ -30,7 +31,7 @@ public:
     }
 
 private:
-    template <typename Color, typename... Args>
+    template <color::ColorType Color, typename... Args>
     void log(const PrinterBase<Color>& printer, std::format_string<Args...> fmt, Args... args) {
         if (printer.available(level_)) {
             std::lock_guard lock{*mutex_};

@@ -20,6 +20,9 @@ std::ostream& operator<<(std::ostream& stream, const Color& color) {
     return stream;
 }
 
+template <typename T>
+concept ColorType = std::derived_from<T, Color>;
+
 class Default final : public Color {
 public:
     Default() : Color(0) {}

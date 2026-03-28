@@ -14,6 +14,7 @@
 #include "handler.hpp"
 #include "http_request.hpp"
 #include "http_response.hpp"
+#include "logger/concept.hpp"
 
 namespace clear_server {
 
@@ -21,7 +22,7 @@ namespace beast = boost::beast;
 namespace http = beast::http;
 namespace asio = boost::asio;
 
-template <typename TcpStream, typename Logger>
+template <typename TcpStream, logger::LoggerType Logger>
 class HttpServerBase {
 public:
     HttpServerBase(const std::string& address, unsigned short port, Logger logger) 
